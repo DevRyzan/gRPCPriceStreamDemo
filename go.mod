@@ -1,4 +1,4 @@
-module github.com 
+module github.com/rezan/rpcs 
 
 go 1.22.7
 

@@ -2,6 +2,21 @@
 
 A sample gRPC service that streams **real-time price updates** to clients. When the server changes the price (simulated every 2 seconds), every subscribed client receives the update immediately over the same stream.
 
+## Fixing "slice bounds out of range" panic
+
+If you see that panic when running the client or server, the generated `pb/` code is out of date. Regenerate it (no need to install protoc; Buf is used automatically):
+
+```powershell
+# Install codegen plugins once (puts them in %USERPROFILE%\go\bin)
+go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+# From project root – regenerates pb/price.pb.go and pb/price_grpc.pb.go
+.\generate.ps1
+```
+
+Then run `go run .\server\` and `go run .\client\` again.
+
 ## Quick start
 
 **Terminal 1 – start the server**
@@ -23,7 +38,7 @@ You should see the client printing new prices every ~2 seconds as the server upd
 | Path | Description |
 |------|-------------|
 | `proto/price.proto` | Service definition: `GetCurrentPrice` (unary) and `SubscribePriceUpdates` (server stream) |
-| `pb/` | Generated Go code for messages and gRPC service (can be regenerated with `protoc`) |
+| `pb/` | **Generated only** – `price.pb.go` and `price_grpc.pb.go` from Buf/protoc (run `.\generate.ps1` to regenerate) |
 | `server/main.go` | gRPC server: holds current price, broadcasts to all subscribers, runs a price simulator |
 | `client/main.go` | gRPC client: optional one-shot price, then subscribes and prints every update |
 
@@ -37,25 +52,5 @@ You should see the client printing new prices every ~2 seconds as the server upd
 So “real-time” here means: **one long-lived gRPC stream per client, and the server pushes a new message whenever the price changes.**
  
 
-1. **Install the Protocol Buffers compiler** (if needed):
-   - Windows: [protoc release](https://github.com/protocolbuffers/protobuf/releases) (e.g. `protoc-27.x-win64.zip` → unzip and add `bin` to PATH), or `choco install protobuf`
-   - Or use [Buf](https://buf.build/docs/installation) and run `buf generate` with a `buf.gen.yaml` that uses the Go plugins.
-
-2. **Install the Go codegen plugins** (once):
-   ```powershell
-   go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-   go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-   ```
-
-3. **From the project root**, run:
-   ```powershell
-   .\generate.ps1
-   ```
-
-   Or run `protoc` yourself:
-   ```powershell
-   protoc --proto_path=. --go_out=pb --go_opt=module=github.com/rezan/rpcs --go-grpc_out=pb --go-grpc_opt=module=github.com/rezan/rpcs proto/price.proto
-   ```
-
-Then run `go run .\client\` again (with the server running).
+To regenerate with **protoc** instead of Buf: install [protoc](https://github.com/protocolbuffers/protobuf/releases), then run `.\generate.ps1`.
 

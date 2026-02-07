@@ -1,8 +1,8 @@
 version: v2
 plugins:
-  - plugin: go
-    out: pb
-    opt: 
-  - plugin: go-grpc
-    out: pb
-    opt: 
+  - remote: buf.build/protocolbuffers/go:v1.34.2
+    out: .
+    opt: module=github.com/rezan/rpcs
+  - remote: buf.build/grpc/go:v1.4.0
+    out: .
+    opt: module=github.com/rezan/rpcs

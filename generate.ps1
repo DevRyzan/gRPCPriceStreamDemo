@@ -2,14 +2,26 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 
+# Put Go bin on PATH so buf can find protoc-gen-go and protoc-gen-go-grpc
+$gobin = go env GOPATH
+if ($gobin) { $gobin = Join-Path $gobin "bin" }
+$goBin = go env GOBIN
+if ($goBin) { $gobin = $goBin }
+if ($gobin -and (Test-Path $gobin)) { $env:Path = "$gobin;$env:Path" }
 
-go run github.com/bufbuild/buf/cmd/buf@latest generate 2>$null
-if ($LASTEXITCODE -eq 0) {
+# Try Buf first (no separate protoc install)
+Write-Host "Trying buf generate... (first run may download buf)"
+$ErrorActionPreference = "Continue"
+go run github.com/bufbuild/buf/cmd/buf@latest generate 2>&1 | Out-Host
+$bufOk = ($LASTEXITCODE -eq 0)
+$ErrorActionPreference = "Stop"
+if ($bufOk) {
     Write-Host "Generated with buf. Run: go run .\server\  and  go run .\client\"
     exit 0
 }
+Write-Host "Buf failed (exit $LASTEXITCODE). Trying protoc..."
 
-# Ensure Go plugin binaries are on PATH for protoc
+# Fall back to protoc
 $gobin = go env GOPATH
 if ($gobin) { $gobin = Join-Path $gobin "bin" }
 $goBin = go env GOBIN
