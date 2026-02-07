@@ -65,3 +65,31 @@ So “real-time” here means: **one long-lived gRPC stream per client, and the 
 
 To regenerate with **protoc** instead of Buf: install [protoc](https://github.com/protocolbuffers/protobuf/releases), then run `.\generate.ps1`.
 
+## HTTP API (request / change price from the terminal)
+
+The server also exposes an HTTP API on **:8080** (or `HTTP_ADDR`) so you can read and set the price from the terminal. Changes are persisted to the DB and gRPC subscribers get the update.
+
+**PowerShell** (Windows – `curl` is an alias for `Invoke-WebRequest` and uses different syntax):
+
+```powershell
+# Get current price
+Invoke-RestMethod -Uri http://localhost:8080/price
+
+# Set price (JSON body)
+Invoke-RestMethod -Uri http://localhost:8080/price -Method Post -ContentType "application/json" -Body '{"price":60000}'
+
+# Set price (raw number in body)
+Invoke-RestMethod -Uri http://localhost:8080/price -Method Post -ContentType "text/plain" -Body "60000"
+```
+
+**curl** (Bash/WSL, or use `curl.exe` on Windows to avoid the PowerShell alias):
+
+```bash
+# Get current price
+curl http://localhost:8080/price
+
+# Set price
+curl -X POST http://localhost:8080/price -H "Content-Type: application/json" -d "{\"price\":60000}"
+curl -X POST http://localhost:8080/price -d "60000"
+```
+

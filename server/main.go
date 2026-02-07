@@ -3,11 +3,16 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"io"
 	"log"
 	"math/rand"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -220,6 +225,80 @@ func runPriceSimulator(b *priceBroadcaster, db *priceDB) {
 	}
 }
 
+// HTTP API for price: GET = read current, POST = set price (persisted to DB). Use from terminal with curl.
+type priceAPI struct {
+	broadcaster *priceBroadcaster
+	db          *priceDB
+}
+
+func (h *priceAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	switch r.Method {
+	case http.MethodGet:
+		cur := h.broadcaster.getCurrent()
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"symbol": cur.Symbol,
+			"price":  cur.Price,
+			"at_ts":  cur.AtTs,
+		})
+	case http.MethodPost, http.MethodPut:
+		body, err := io.ReadAll(r.Body)
+		r.Body.Close()
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "failed to read body"})
+			return
+		}
+		var payload struct {
+			Symbol string  `json:"symbol"`
+			Price  float64 `json:"price"`
+		}
+		payload.Symbol = "BTC"
+		if err := json.Unmarshal(body, &payload); err != nil {
+			trimmed := strings.TrimSpace(string(body))
+			if p, errP := strconv.ParseFloat(trimmed, 64); errP == nil && p > 0 {
+				payload.Price = p
+			}
+		}
+		if payload.Symbol == "" {
+			payload.Symbol = "BTC"
+		}
+		if payload.Price <= 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "price must be > 0"})
+			return
+		}
+		atTs := time.Now().Unix()
+		h.broadcaster.setPrice(payload.Price)
+		if h.db != nil {
+			h.db.insertPrice(payload.Symbol, payload.Price, atTs)
+		}
+		cur := h.broadcaster.getCurrent()
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"symbol": cur.Symbol,
+			"price":  cur.Price,
+			"at_ts":  cur.AtTs,
+		})
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(map[string]string{"error": "use GET or POST"})
+	}
+}
+
+func runHTTPAPI(broadcaster *priceBroadcaster, db *priceDB) {
+	api := &priceAPI{broadcaster: broadcaster, db: db}
+	http.Handle("/price", api)
+	http.Handle("/api/price", api)
+	addr := os.Getenv("HTTP_ADDR")
+	if addr == "" {
+		addr = ":8080"
+	}
+	log.Printf("[http] API listening on %s (GET/POST /price)", addr)
+	if err := http.ListenAndServe(addr, nil); err != nil {
+		log.Printf("[http] serve: %v", err)
+	}
+}
+
 func main() {
 	// Optional: DB file path (default: price.db in current directory)
 	dbPath := os.Getenv("PRICE_DB")
@@ -252,6 +331,7 @@ func main() {
 
 	broadcaster := newPriceBroadcaster(symbol, initialPrice)
 	go runPriceSimulator(broadcaster, db)
+	go runHTTPAPI(broadcaster, db)
 
 	lis, err := net.Listen("tcp", ":50051")
 	if err != nil {
