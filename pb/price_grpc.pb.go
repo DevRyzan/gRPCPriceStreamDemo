@@ -21,12 +21,22 @@ const _ = grpc.SupportPackageIsVersion8
 const (
 	PriceService_GetCurrentPrice_FullMethodName       = "/price.PriceService/GetCurrentPrice"
 	PriceService_SubscribePriceUpdates_FullMethodName = "/price.PriceService/SubscribePriceUpdates"
+	PriceService_SetPrice_FullMethodName              = "/price.PriceService/SetPrice"
 )
 
 // PriceServiceClient is the client API for PriceService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// PriceService provides real-time price updates via server streaming.
 type PriceServiceClient interface {
+	// GetCurrentPrice returns the latest price once (unary).
 	GetCurrentPrice(ctx context.Context, in *GetCurrentPriceRequest, opts ...grpc.CallOption) (*PriceUpdate, error)
+	// SubscribePriceUpdates opens a stream; the server pushes a new message
+	// whenever the price changes (real-time).
 	SubscribePriceUpdates(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (PriceService_SubscribePriceUpdatesClient, error)
+	// SetPrice sets the current price for a symbol (e.g. BTC). Persisted to DB; all subscribers get the update.
+	SetPrice(ctx context.Context, in *SetPriceRequest, opts ...grpc.CallOption) (*PriceUpdate, error)
 }
 
 type priceServiceClient struct {
@@ -80,12 +90,29 @@ func (x *priceServiceSubscribePriceUpdatesClient) Recv() (*PriceUpdate, error) {
 	return m, nil
 }
 
+func (c *priceServiceClient) SetPrice(ctx context.Context, in *SetPriceRequest, opts ...grpc.CallOption) (*PriceUpdate, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PriceUpdate)
+	err := c.cc.Invoke(ctx, PriceService_SetPrice_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PriceServiceServer is the server API for PriceService service.
 // All implementations must embed UnimplementedPriceServiceServer
 // for forward compatibility
+//
+// PriceService provides real-time price updates via server streaming.
 type PriceServiceServer interface {
+	// GetCurrentPrice returns the latest price once (unary).
 	GetCurrentPrice(context.Context, *GetCurrentPriceRequest) (*PriceUpdate, error)
+	// SubscribePriceUpdates opens a stream; the server pushes a new message
+	// whenever the price changes (real-time).
 	SubscribePriceUpdates(*SubscribeRequest, PriceService_SubscribePriceUpdatesServer) error
+	// SetPrice sets the current price for a symbol (e.g. BTC). Persisted to DB; all subscribers get the update.
+	SetPrice(context.Context, *SetPriceRequest) (*PriceUpdate, error)
 	mustEmbedUnimplementedPriceServiceServer()
 }
 
@@ -99,9 +126,14 @@ func (UnimplementedPriceServiceServer) GetCurrentPrice(context.Context, *GetCurr
 func (UnimplementedPriceServiceServer) SubscribePriceUpdates(*SubscribeRequest, PriceService_SubscribePriceUpdatesServer) error {
 	return status.Errorf(codes.Unimplemented, "method SubscribePriceUpdates not implemented")
 }
+func (UnimplementedPriceServiceServer) SetPrice(context.Context, *SetPriceRequest) (*PriceUpdate, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetPrice not implemented")
+}
 func (UnimplementedPriceServiceServer) mustEmbedUnimplementedPriceServiceServer() {}
 
 // UnsafePriceServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to PriceServiceServer will
+// result in compilation errors.
 type UnsafePriceServiceServer interface {
 	mustEmbedUnimplementedPriceServiceServer()
 }
@@ -149,7 +181,27 @@ func (x *priceServiceSubscribePriceUpdatesServer) Send(m *PriceUpdate) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _PriceService_SetPrice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetPriceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PriceServiceServer).SetPrice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PriceService_SetPrice_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PriceServiceServer).SetPrice(ctx, req.(*SetPriceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PriceService_ServiceDesc is the grpc.ServiceDesc for PriceService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
 var PriceService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "price.PriceService",
 	HandlerType: (*PriceServiceServer)(nil),
@@ -157,6 +209,10 @@ var PriceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetCurrentPrice",
 			Handler:    _PriceService_GetCurrentPrice_Handler,
+		},
+		{
+			MethodName: "SetPrice",
+			Handler:    _PriceService_SetPrice_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -26,9 +27,24 @@ func main() {
 	defer conn.Close()
 
 	client := pb.NewPriceServiceClient(conn)
+	ctx := context.Background()
 
- 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	cur, err := client.GetCurrentPrice(ctx, &pb.GetCurrentPriceRequest{})
+	// Optional: set price via env (e.g. SET_PRICE=60000) then continue to subscribe
+	if v := os.Getenv("SET_PRICE"); v != "" {
+		if price, err := strconv.ParseFloat(v, 64); err == nil && price > 0 {
+			setCtx, setCancel := context.WithTimeout(ctx, 5*time.Second)
+			resp, err := client.SetPrice(setCtx, &pb.SetPriceRequest{Symbol: "BTC", Price: price})
+			setCancel()
+			if err != nil {
+				log.Printf("SetPrice: %v", err)
+			} else {
+				log.Printf("SetPrice OK: %s = %.2f (at %d)", resp.Symbol, resp.Price, resp.AtTs)
+			}
+		}
+	}
+
+	ctx5, cancel := context.WithTimeout(ctx, 5*time.Second)
+	cur, err := client.GetCurrentPrice(ctx5, &pb.GetCurrentPriceRequest{})
 	cancel()
 	if err != nil {
 		log.Printf("GetCurrentPrice: %v (continuing anyway)", err)

@@ -12,12 +12,20 @@ service PriceService {
   // SubscribePriceUpdates opens a stream; the server pushes a new message
   // whenever the price changes (real-time).
   rpc SubscribePriceUpdates(SubscribeRequest) returns (stream PriceUpdate);
+
+  // SetPrice sets the current price for a symbol (e.g. BTC). Persisted to DB; all subscribers get the update.
+  rpc SetPrice(SetPriceRequest) returns (PriceUpdate);
 }
 
 message GetCurrentPriceRequest {}
 
 message SubscribeRequest {
   string symbol = 1; // e.g. "BTC", "ETH" - for future use
+}
+
+message SetPriceRequest {
+  string symbol = 1; // e.g. "BTC"
+  double price  = 2; // new price to set
 }
 
 message PriceUpdate {

@@ -39,8 +39,19 @@ You should see the client printing new prices every ~2 seconds as the server upd
 |------|-------------|
 | `proto/price.proto` | Service definition: `GetCurrentPrice` (unary) and `SubscribePriceUpdates` (server stream) |
 | `pb/` | **Generated only** – `price.pb.go` and `price_grpc.pb.go` from Buf/protoc (run `.\generate.ps1` to regenerate) |
-| `server/main.go` | gRPC server: holds current price, broadcasts to all subscribers, runs a price simulator |
+| `server/main.go` | gRPC server: current price, broadcast to subscribers, price simulator was a simulator but now SQLite persistence |
 | `client/main.go` | gRPC client: optional one-shot price, then subscribes and prints every update |
+
+## Database (SQLite)
+
+The server uses **SQLite** (pure Go, no CGO) to persist price history and to load the last known price on startup.
+
+- **On start:** Creates `price.db` in the server’s working directory (and `price_history` table if missing), then loads the latest stored price for the symbol and uses it as the initial value.
+- **On each update:** Appends a row to `price_history` (`symbol`, `price`, `at_ts`) so you get a history of all simulated updates.
+
+To use a different DB file, set `PRICE_DB` (e.g. `PRICE_DB=file:/path/to/other.db?_pragma=journal_mode(wal)`).
+
+Run `go mod tidy` once to fetch the SQLite driver (`modernc.org/sqlite`).
 
 ## How the real-time stream works
 
