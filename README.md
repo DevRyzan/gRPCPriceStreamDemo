@@ -41,6 +41,7 @@ You should see the client printing new prices every ~2 seconds as the server upd
 | `pb/` | **Generated only** – `price.pb.go` and `price_grpc.pb.go` from Buf/protoc (run `.\generate.ps1` to regenerate) |
 | `server/main.go` | gRPC server: current price, broadcast to subscribers, price simulator was a simulator but now SQLite persistence |
 | `client/main.go` | gRPC client: optional one-shot price, then subscribes and prints every update |
+| `desktop/` | **Wails** desktop app (Vue 3 + TypeScript): connects to the gRPC stream and shows live prices in a window |
 
 ## Database (SQLite)
 
@@ -92,4 +93,8 @@ curl http://localhost:8080/price
 curl -X POST http://localhost:8080/price -H "Content-Type: application/json" -d "{\"price\":60000}"
 curl -X POST http://localhost:8080/price -d "60000"
 ```
+
+## Desktop app (Wails)
+
+A small **desktop app** in `desktop/` uses [Wails v2](https://wails.io/) (Vue 3 + TypeScript) and connects to the gRPC server with **native gRPC** (no browser, no Envoy). Start the server, then from `desktop/` run `wails dev` and click **Connect** to see live prices. See `desktop/README.md` for details.
 
