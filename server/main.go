@@ -73,7 +73,8 @@ func (b *priceBroadcaster) unsubscribe(ch chan *pb.PriceUpdate) {
 	b.mu.Lock()
 	delete(b.subscribers, ch)
 	b.mu.Unlock()
-	close(ch)
+	// dont close(ch) server side should not close the channel we could get a panic from the client
+	// The server could be close if client is closed or not connected anymore. 
 }
 
 // priceService implements pb.PriceServiceServer.
