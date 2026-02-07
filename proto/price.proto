@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package price;
+
+option go_package = "github.com/rezan/rpcs/pb";
+
+// PriceService provides real-time price updates via server streaming.
+service PriceService {
+  // GetCurrentPrice returns the latest price once (unary).
+  rpc GetCurrentPrice(GetCurrentPriceRequest) returns (PriceUpdate);
+
+  // SubscribePriceUpdates opens a stream; the server pushes a new message
+  // whenever the price changes (real-time).
+  rpc SubscribePriceUpdates(SubscribeRequest) returns (stream PriceUpdate);
+}
+
+message GetCurrentPriceRequest {}
+
+message SubscribeRequest {
+  string symbol = 1; // e.g. "BTC", "ETH" - for future use
+}
+
+message PriceUpdate {
+  string symbol = 1;
+  double price  = 2;
+  int64  at_ts  = 3; // Unix timestamp when price was set
+}
